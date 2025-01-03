@@ -44,7 +44,7 @@ def visualize_analysis(self):
     plt.tight_layout()
     return fig
 
-def generate_readable_report(ticker: str, report_obj: OptionsReport):
+def generate_readable_report(detector_obj: OptionsDetector, report_obj: OptionsReport):
     """
     Generate a human-readable report of the unusual options activity
     """
@@ -52,7 +52,7 @@ def generate_readable_report(ticker: str, report_obj: OptionsReport):
     interpretation = report_obj.interpret_unusual_activity(report)
     
     print("\n" + "="*50)
-    print(f"OPTIONS ACTIVITY REPORT FOR {ticker}")
+    print(f"OPTIONS ACTIVITY REPORT FOR {detector_obj.symbol}")
     print("="*50)
     
     print("\nSUMMARY:")
@@ -69,16 +69,19 @@ def generate_readable_report(ticker: str, report_obj: OptionsReport):
     print("-"*50)
     for i, interpretation in enumerate(interpretation['detailed_interpretations'], 1):
         print(f"{i}. {interpretation}")
-    
+    print("="*50)
+    print(f"\nCurrent Dynamic Thresholds:")
+    for threshold_name, value in detector_obj.thresholds.items():
+        print(f"{threshold_name}: {value:.3f}")
     return interpretation
 
 def main():
-    ticker = "AMZN"
+    ticker = "MSFT"
     detector = OptionsDetector(ticker)
     report = OptionsReport(detector)
     
     # Generate a comprehensive report
-    comprehensive_report = generate_readable_report(ticker, report)
+    comprehensive_report = generate_readable_report(detector, report)
     
     # Visualize the analysis
     # fig = visualize_analysis(report)

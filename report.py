@@ -15,6 +15,10 @@ class OptionsReport:
 
     def generate_comprehensive_report(self):
         """Generate a comprehensive analysis report"""
+
+        # Initialize dynamic thresholds
+        self.detector.initialize_dynamic_thresholds()
+
         # Fetch and analyze all data
         historical_data = self.detector.get_historical_data()
         price_analysis = self.detector.analyze_price_movement(historical_data)

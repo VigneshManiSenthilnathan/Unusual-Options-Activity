@@ -3,14 +3,38 @@ import numpy as np
 import yfinance as yf
 from scipy import stats
 from datetime import datetime, timedelta
+from dynamicThreshold import DynamicThresholdCalculator
 
 class OptionsDetector:
-    def __init__(self, symbol, lookback_period=30):
+    def __init__(self, symbol, lookback_period=252):
         self.symbol = symbol
         self.lookback_period = lookback_period
-        self.threshold_std = 2
-        self.volume_multiplier = 3
+        self.thresholds = {}
         self.stock = yf.Ticker(symbol)
+
+    def initialize_dynamic_thresholds(self):
+        """
+        Initialize dynamic thresholds based on current market conditions
+        """
+        historical_data = self.get_historical_data()
+        options_data = self.analyze_options_chain()
+        
+        threshold_calculator = DynamicThresholdCalculator(historical_data, options_data)
+        
+        # Get both volatility and liquidity based thresholds
+        vol_thresholds = threshold_calculator.calculate_volatility_based_threshold()
+        liq_thresholds = threshold_calculator.calculate_liquidity_based_threshold()
+        
+        # Combine thresholds
+        self.thresholds = {
+            'price_move': vol_thresholds['price_move_threshold'],
+            'volume': vol_thresholds['volume_threshold'] * liq_thresholds['volume_multiplier'],
+            'iv': vol_thresholds['iv_threshold'],
+            'spread': liq_thresholds['spread_threshold'],
+            'oi': liq_thresholds['oi_threshold']
+        }
+        
+        return self.thresholds
         
     def get_historical_data(self):
         """Fetch historical price data"""
@@ -84,15 +108,22 @@ class OptionsDetector:
         }
 
     def track_options_flow(self, options_data):
-        """Track and analyze options flow"""
+        """
+        Track and analyze options flow using dynamic thresholds
+        """
+        if not self.thresholds:
+            self.initialize_dynamic_thresholds()
+        
         options_data['dollar_volume'] = options_data['volume'] * options_data['lastPrice'] * 100
+        
+        # Define dynamic thresholds for flow separation
+        volume_threshold = self.thresholds['volume']
         
         # Separate bullish and bearish flow
         bullish_flow = options_data[
             ((options_data['type'] == 'call') & (options_data['lastPrice'] > options_data['bid'])) |
             ((options_data['type'] == 'put') & (options_data['lastPrice'] < options_data['ask']))
         ]
-        
         bearish_flow = options_data[
             ((options_data['type'] == 'put') & (options_data['lastPrice'] > options_data['bid'])) |
             ((options_data['type'] == 'call') & (options_data['lastPrice'] < options_data['ask']))
@@ -105,14 +136,19 @@ class OptionsDetector:
         }
 
     def detect_unusual_spreads(self, options_data):
-        """Detect unusual options spreads"""
+        """
+        Detect unusual options spreads based on dynamic thresholds
+        """
+        if not self.thresholds:
+            self.initialize_dynamic_thresholds()
+        
         # Calculate z-scores for spread metrics
         options_data['spread_z_score'] = stats.zscore(options_data['spread_percentage'])
         
-        # Identify unusual spreads
+        # Identify unusual spreads using dynamic thresholds
         unusual_spreads = options_data[
-            (options_data['spread_z_score'] > self.threshold_std) &
-            (options_data['volume'] > options_data['volume'].mean())
+            (options_data['spread_z_score'] > self.thresholds['spread']) & 
+            (options_data['volume'] > self.thresholds['volume'])
         ]
         
         return unusual_spreads
